@@ -1,0 +1,68 @@
+FROM debian:stable-20231120-slim AS build
+LABEL maintainer="lacepool@proton.me"
+
+SHELL ["/bin/bash", "-c"]
+WORKDIR /
+
+# Install tools
+RUN apt-get update -y && apt-get install -y build-essential m4 libssl-dev git vim curl && apt-get clean
+
+# Install rust
+ENV RUSTUP_HOME=/usr/local/rustup \
+    CARGO_HOME=/usr/local/cargo \
+    PATH=/usr/local/cargo/bin:$PATH
+
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+RUN cat /usr/local/cargo/env
+RUN rustup install stable \
+    && rustup default stable \
+    && rustup update
+
+ARG VERSION
+RUN git clone https://github.com/input-output-hk/mithril.git \
+    && cd mithril/mithril-signer \
+    && git checkout tags/$VERSION \
+    && make build
+
+
+FROM debian:stable-20231120-slim
+LABEL maintainer="lacepool@proton.me"
+
+RUN apt-get update -y \
+    && apt-get install -y libssl-dev ca-certificates curl gnupg vim jq
+
+RUN install -m 0755 -d /etc/apt/keyrings \
+    && curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg \
+    && chmod a+r /etc/apt/keyrings/docker.gpg
+RUN echo \
+    "deb [arch="$(dpkg --print-architecture)" signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian \
+    "$(. /etc/os-release && echo "$VERSION_CODENAME")" stable" | \
+    tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+RUN apt-get update -y \
+    && apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin \
+    && apt-get clean
+
+COPY --from=build /mithril/mithril-signer/mithril-signer /usr/bin/mithril-signer
+
+ADD scripts/ /scripts/
+RUN chmod -R +x /scripts/
+
+ENV NETWORK="mainnet" \
+    PARTY_ID="" \
+    AGGREGATOR_ENDPOINT="https://aggregator.release-mainnet.api.mithril.network/aggregator" \
+    RUN_INTERVAL="60000" \
+    CARDANO_NODE_SOCKET_PATH="/cardano/ipc/node.socket" \
+    OPERATIONAL_CERTIFICATE_PATH="/cardano/cert/opcert.cert" \
+    CARDANO_CLI_PATH="/app/bin/cardano-cli" \
+    DATA_STORES_DIRECTORY="/mithril/store" \
+    STORE_RETENTION_LIMIT="5" \
+    ERA_READER_ADAPTER_TYPE="cardano-chain" \
+    ERA_READER_ADAPTER_PARAMS="" \
+    RELAY_ENDPOINT="" \
+    LANG="C.UTF-8" \
+    TZ="Etc/UTC"
+ENV DB_DIRECTORY="/cardano/$NETWORK/db" \
+    KES_SECRET_KEY_PATH="/cardano/$NETWORK/keys/kes.skey"
+
+ENTRYPOINT ["/scripts/start-signer"]

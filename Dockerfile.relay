@@ -1,0 +1,14 @@
+FROM distahl/squid:bookworm
+LABEL maintainer="lacepool@proton.me"
+
+SHELL ["/bin/bash", "-c"]
+WORKDIR /
+
+ADD scripts/ /scripts
+RUN chmod -R +x /scripts/
+
+ENV MITHRIL_PORT="3132" \
+    BLOCKPRODUCER_IP="" \
+    TZ="Etc/UTC"
+
+ENTRYPOINT ["/scripts/start-relay"]

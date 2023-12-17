@@ -1,0 +1,5 @@
+#!/bin/bash
+set -e
+
+/scripts/relay-create-squid-config
+exec /bin/start-squid.sh "$@"
