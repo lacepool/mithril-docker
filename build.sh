@@ -1,6 +1,6 @@
 #!/bin/bash
 
-MITHRIL_SIGNER_VERSION="2408.0"
+MITHRIL_SIGNER_VERSION="2430.0"
 MITHRIL_RELAY_VERSION="1.0.0"
 
 docker build -f Dockerfile.signer \
